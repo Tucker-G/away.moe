@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { BASE_URL } from "../config";
+import qr from 'qr.js';
 
 const UploadForm = ({ uniqueId, setUploadProgress, uploadProgress }) => {
   const [file, setFile] = useState(null);
@@ -9,6 +10,7 @@ const UploadForm = ({ uniqueId, setUploadProgress, uploadProgress }) => {
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState(""); // Track error messages
   const [isUploaded, setIsUploaded] = useState(false); // Track upload success
+  const qrCanvasRef = useRef(null);
 
   const MAX_FILE_SIZE_MB = 50;
 
@@ -47,6 +49,38 @@ const UploadForm = ({ uniqueId, setUploadProgress, uploadProgress }) => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [isUploaded]);
+
+  // Add this useEffect to render the QR code
+  useEffect(() => {
+    if (uniqueId && isUploaded && qrCanvasRef.current) {
+      const qrData = qr(`https://away.moe/${uniqueId}`);
+      const canvas = qrCanvasRef.current;
+      const ctx = canvas.getContext('2d');
+      const size = 256;
+      const cells = qrData.modules;
+      const cellSize = size / cells.length;
+      
+      canvas.width = size;
+      canvas.height = size;
+      
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, size, size);
+      
+      ctx.fillStyle = 'black';
+      cells.forEach((row, rowIndex) => {
+        row.forEach((cell, cellIndex) => {
+          if (cell) {
+            ctx.fillRect(
+              cellIndex * cellSize,
+              rowIndex * cellSize,
+              cellSize,
+              cellSize
+            );
+          }
+        });
+      });
+    }
+  }, [uniqueId, isUploaded]);
 
   // Handle file selection
   const handleFileSelect = (e) => {
@@ -134,14 +168,27 @@ const UploadForm = ({ uniqueId, setUploadProgress, uploadProgress }) => {
         </p>
         <h2>
           <a
-            href={`https://away.moe/${uniqueId}`} // Link to the upload URL
-            rel="noopener noreferrer" // For security reasons when opening in a new tab
-            style={styles.link} // Custom styling for the link (optional)
+            href={`https://away.moe/${uniqueId}`}
+            rel="noopener noreferrer"
+            style={styles.link}
           >
             away.moe/{uniqueId}
           </a>
         </h2>
         <p>Thank you for using away.moe!</p>
+        {uniqueId && (
+          <div className="qr-code-container">
+            <h3>Scan QR Code to Share</h3>
+            <canvas 
+              ref={qrCanvasRef}
+              style={{ 
+                width: '256px', 
+                height: '256px',
+                margin: '10px'
+              }}
+            />
+          </div>
+        )}
       </div>
     );
   }
@@ -337,6 +384,19 @@ const styles = {
     fontWeight: "bold", // Make the text bold (optional)
     transition: "color 0.3s", // Smooth color transition when hovering
   },
+  '.qr-code-container': {
+    marginTop: '20px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: '20px',
+    backgroundColor: '#f5f5f5',
+    borderRadius: '8px',
+  },
+  '.qr-code-container h3': {
+    marginBottom: '15px',
+    color: '#333',
+  }
 };
 
 export default UploadForm;
