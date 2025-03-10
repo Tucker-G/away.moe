@@ -15,7 +15,6 @@ class SQLiteDatabase(Database):
         super().__init__()
         self.conn = sqlite3.connect(db_file, check_same_thread=False, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
         self._create_table()
-        self.conn.execute("PRAGMA foreign_keys = ON;")
         self._start_cleanup_scheduler()
 
     def _create_table(self):
@@ -51,51 +50,53 @@ class SQLiteDatabase(Database):
                     FOREIGN KEY (ID) REFERENCES URLMetadata(ID)
                         ON DELETE SET NULL
                 );
+                self.conn.execute("PRAGMA foreign_keys = ON;")
+                self.conn.execute("PRAGMA journal_mode=WAL;")
             """)
 
     def entry_present(self, unique_id: str) -> bool:
         """Check if an entry exists in the URLMetadata table."""
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT 1 FROM URLMetadata WHERE ID = ?", (unique_id,))
-        return cursor.fetchone() is not None
+        with self.conn:
+            cursor = self.conn.execute("SELECT 1 FROM URLMetadata WHERE ID = ?", (unique_id,))
+            return cursor.fetchone() is not None
 
     def retrieve_entry(self, unique_id: str) -> FileEntry | None:
         """Retrieve an entry from the database and return it as a FileEntry object."""
-        cursor = self.conn.cursor()
         # Retrieve metadata from URLMetadata table
-        cursor.execute("""
-            SELECT ExpiryTime, InstantExpire, IP
-            FROM URLMetadata
-            WHERE ID = ?
-        """, (unique_id,))
-        metadata = cursor.fetchone()
+        with self.conn:
+            cursor = self.conn.execute("""
+                SELECT ExpiryTime, InstantExpire, IP
+                FROM URLMetadata
+                WHERE ID = ?
+            """, (unique_id,))
+            metadata = cursor.fetchone()
 
-        if not metadata:
-            return None
+            if not metadata:
+                return None
 
-        # Parse metadata
-        expiry_time = int(datetime.strptime(metadata[0], "%Y-%m-%d %H:%M:%S").timestamp()) if metadata[0] else None
-        instant_expire = bool(metadata[1])
-        ip_address = metadata[2]
+            # Parse metadata
+            expiry_time = int(datetime.strptime(metadata[0], "%Y-%m-%d %H:%M:%S").timestamp()) if metadata[0] else None
+            instant_expire = bool(metadata[1])
+            ip_address = metadata[2]
 
-        # Retrieve text content
-        cursor.execute("""
-            SELECT Content
-            FROM Text
-            WHERE ID = ?
-        """, (unique_id,))
-        text_result = cursor.fetchone()
-        text_content = text_result[0] if text_result else None
+            # Retrieve text content
+            cursor.execute("""
+                SELECT Content
+                FROM Text
+                WHERE ID = ?
+            """, (unique_id,))
+            text_result = cursor.fetchone()
+            text_content = text_result[0] if text_result else None
 
-        # Retrieve file information
-        cursor.execute("""
-            SELECT FileName
-            FROM File
-            WHERE ID = ?
-        """, (unique_id,))
-        file_result = cursor.fetchone()
-        file_name = file_result[0] if file_result else None
-        has_file = file_result is not None
+            # Retrieve file information
+            cursor.execute("""
+                SELECT FileName
+                FROM File
+                WHERE ID = ?
+            """, (unique_id,))
+            file_result = cursor.fetchone()
+            file_name = file_result[0] if file_result else None
+            has_file = file_result is not None
 
         # Return a FileEntry object
         return FileEntry(
@@ -119,8 +120,7 @@ class SQLiteDatabase(Database):
         print(f"unique_id: {unique_id}, expiration_time: {entry.expiration_time}, instant_expire: {entry.instant_expire}")
         """Add data to the database."""
         with self.conn:
-            cursor = self.conn.cursor()
-            cursor.execute("""
+            cursor = self.conn.execute("""
                 INSERT INTO URLMetadata (ID, ExpiryTime, InstantExpire, IP)
                 VALUES (?, ?, ?, ?)
             """, (unique_id,
@@ -148,8 +148,7 @@ class SQLiteDatabase(Database):
     def delete_from_database(self, unique_id: str):
         """Delete an entry and its associated data."""
         with self.conn:
-            cursor = self.conn.cursor()
-            cursor.execute("SELECT InstantExpire FROM URLMetadata WHERE ID = ?", (unique_id,))
+            cursor = self.conn.execute("SELECT InstantExpire FROM URLMetadata WHERE ID = ?", (unique_id,))
             result = cursor.fetchone()
             if result and result[0]:  # If InstantExpire is True
                 print("updated time to +1 hour")
@@ -171,10 +170,10 @@ class SQLiteDatabase(Database):
 
     def retrieve_file_path(self, unique_id: str) -> Path:
         """Retrieve the file path for a given entry."""
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT Path FROM File WHERE ID = ?", (unique_id,))
-        result = cursor.fetchone()
-        return Path(result[0]) if result else None
+        with self.conn:
+            cursor = self.conn.execute("SELECT Path FROM File WHERE ID = ?", (unique_id,))
+            result = cursor.fetchone()
+            return Path(result[0]) if result else None
 
     # def retrieve_file_name(self, unique_id: str) -> str:
     #     """Retrieve the file name for a given entry."""
