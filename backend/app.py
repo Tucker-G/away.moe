@@ -1,6 +1,7 @@
 import os
 import uuid
 from datetime import datetime, timedelta
+import logging
 
 from flask import Flask, request, jsonify, send_from_directory, render_template, send_file
 from flask_cors import CORS
@@ -12,6 +13,10 @@ from database import Database, FileEntry
 
 app = Flask(__name__, static_folder="../frontend/build", static_url_path="/")
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB limit
+
+gunicorn_logger = logging.getLogger('gunicorn.error')
+app.logger.handlers = gunicorn_logger.handlers
+app.logger.setLevel(logging.DEBUG)
 
 db: Database = SQLiteDatabase()
 # db: Database = PythonDatabase()
