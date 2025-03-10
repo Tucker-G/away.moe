@@ -50,9 +50,9 @@ class SQLiteDatabase(Database):
                     FOREIGN KEY (ID) REFERENCES URLMetadata(ID)
                         ON DELETE SET NULL
                 );
-                self.conn.execute("PRAGMA foreign_keys = ON;")
-                self.conn.execute("PRAGMA journal_mode=WAL;")
             """)
+            self.conn.execute("PRAGMA foreign_keys = ON;")
+            self.conn.execute("PRAGMA journal_mode=WAL;")
 
     def entry_present(self, unique_id: str) -> bool:
         """Check if an entry exists in the URLMetadata table."""
