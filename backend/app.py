@@ -36,7 +36,7 @@ def serve_react2(unique_id: str):
 def upload(unique_id: str):
     """API to upload a file and / or text."""
     file = None
-    print("got upload")
+    app.logger.info(f"Got file for {unique_id}")
     if "file" in request.files:
         file = request.files["file"]
         print(f"got file {file}")
@@ -63,6 +63,7 @@ def upload(unique_id: str):
     )
 
     db.add_to_database(unique_id, entry, file)
+    app.logger.info(f"Stored file in database for {unique_id}")
     return jsonify({"message": "File uploaded successfully"}), 200
 
 
