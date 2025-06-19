@@ -1,5 +1,8 @@
 import React from "react";
 import {BASE_URL} from "../config";
+import Linkify from "linkify-react";
+
+
 
 const DownloadPage = ({ data, setDownloadProgress, downloadProgress }) => {
   const handleDownload = () => {
@@ -41,6 +44,7 @@ const DownloadPage = ({ data, setDownloadProgress, downloadProgress }) => {
 
   const isImage = data.filename?.match(/\.(jpeg|jpg|gif|png|bmp)$/i);
   const hasFile = Boolean(data.filename);
+  const linkifyOptions = { defaultProtocol: "https" };
 
   return (
     <div style={{ textAlign: "center", marginTop: "50px" }}>
@@ -54,7 +58,7 @@ const DownloadPage = ({ data, setDownloadProgress, downloadProgress }) => {
           borderRadius: "4px",
           marginTop: "10px"
         }}>
-          {data.text}
+          <Linkify options={linkifyOptions}>{data.text}</Linkify>
           {data.text && (
             <button 
               onClick={() => navigator.clipboard.writeText(data.text)}
