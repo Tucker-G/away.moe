@@ -39,3 +39,27 @@
 - **Flask**: Backend server for handling uploads, downloads, and API requests.
 - **SQLite3**: Database storing file and text data
 
+---
+
+## Development
+
+The backend (Flask, API-only) and frontend (React) run as separate processes. In dev, Create React App's `proxy` field forwards `/api/*` requests from `:3000` to the backend on `:5000`.
+
+### Backend (terminal 1)
+```bash
+cd backend
+pip install -r ../requirements.txt
+python app.py              # listens on 0.0.0.0:5000
+```
+
+### Frontend (terminal 2)
+```bash
+cd frontend
+npm install
+npm start                  # opens http://localhost:3000
+```
+
+### Production
+
+Build the frontend with `npm run build` and serve the static assets from `frontend/build/` via any static host (nginx, Caddy, etc.). Route `/api/*` to the Flask backend via the same reverse proxy so the frontend's relative URLs resolve correctly. To point at a separate API host instead, build with `REACT_APP_BASE_URL=https://api.example.com npm run build`.
+

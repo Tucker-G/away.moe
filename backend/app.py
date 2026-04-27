@@ -3,16 +3,18 @@ import uuid
 from datetime import datetime, timedelta
 import logging
 
-from flask import Flask, request, jsonify, send_from_directory, render_template, send_file
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
+from pydantic import TypeAdapter
 from werkzeug.datastructures import FileStorage
 from werkzeug.exceptions import RequestEntityTooLarge
 
+from backend.models import FetchInfoFailure, FetchInfoSuccess
 from sql_db import SQLiteDatabase
 from database import Database, FileEntry
 
-app = Flask(__name__, static_folder="../frontend/build", static_url_path="/")
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB limit
+app = Flask(__name__)
+app.config['MAX_COrNTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB limit
 
 gunicorn_logger = logging.getLogger('gunicorn.error')
 app.logger.handlers = gunicorn_logger.handlers
@@ -25,17 +27,6 @@ CORS(app)
 @app.errorhandler(RequestEntityTooLarge)
 def handle_file_too_large(e):
     return jsonify({"error": "File size exceeds the 50 MB limit"}), 413
-
-@app.route("/")
-def serve_react():
-    """Serve the React app."""
-    return app.send_static_file("index.html")
-
-@app.route("/<unique_id>")
-def serve_react2(unique_id: str):
-    """Serve the React app."""
-    return app.send_static_file("index.html")
-
 
 @app.route("/api/upload/<unique_id>", methods=["POST"])
 def upload(unique_id: str):
@@ -71,33 +62,34 @@ def upload(unique_id: str):
     app.logger.info(f"Stored file in database for {unique_id}")
     return jsonify({"message": "File uploaded successfully"}), 200
 
-
 @app.route("/api/fetch_info/<unique_id>", methods=["GET"])
 def fetch_info(unique_id: str):
-    json_response = {"unique_id": unique_id}
-
-    entry = db.retrieve_entry(unique_id)
+    entry: FileEntry = db.retrieve_entry(unique_id)
 
     if not entry:
-        json_response["id_present"] = False
-        return jsonify(json_response), 200
+        response = FetchInfoFailure(unique_id, "ID not present")
+        return jsonify(TypeAdapter(FetchInfoFailure).dump_python(response)), 200
 
     if db.check_expired(entry):
         db.delete_from_database(unique_id)
-        json_response["id_present"] = False
-        return jsonify(json_response), 200
+        response = FetchInfoFailure(unique_id, "ID not present")
+        return jsonify(TypeAdapter(FetchInfoFailure).dump_python(response)), 200
     else:
-        json_response["id_present"] = True
-        json_response["text"] = entry.text
+        response = FetchInfoSuccess(
+            unique_id=unique_id,
+            id_present=True,
+            text=entry.text
+        )
         if entry.has_file:
-            json_response["filename"] = entry.file_name
+            response.filename = entry.file_name
             try:
-                json_response["filesize"] = os.path.getsize(db.retrieve_file_path(unique_id))
+                response.filesize = os.path.getsize(db.retrieve_file_path(unique_id))
             except FileNotFoundError:
-                return jsonify({"message": "File does not exist"}), 400
+                response = FetchInfoFailure(unique_id, "File does not exist")
+                return jsonify(TypeAdapter(FetchInfoFailure).dump_python(response)), 400
         elif entry.instant_expire:
             db.delete_from_database(unique_id)
-        return jsonify(json_response)
+        return jsonify(TypeAdapter(FetchInfoSuccess).dump_python(response)), 200
 
 
 @app.route("/api/download/<unique_id>", methods=["GET"])
@@ -138,4 +130,4 @@ def get_future_timestamp(expiration_str: str) -> tuple[int, bool] | tuple[None, 
     return int(expiration_datetime.timestamp()), is_instant_expire
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=443)
+    app.run(host='0.0.0.0', port=5000)
