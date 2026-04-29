@@ -12,7 +12,7 @@ const UploadForm = ({ uniqueId, setUploadProgress, uploadProgress }) => {
   const [isUploaded, setIsUploaded] = useState(false); // Track upload success
   const qrCanvasRef = useRef(null);
 
-  const MAX_FILE_SIZE_MB = 50;
+  const MAX_FILE_SIZE_MB = 1024;
 
   useEffect(() => {
     const handleBeforeUnload = (e) => {
@@ -126,29 +126,20 @@ const UploadForm = ({ uniqueId, setUploadProgress, uploadProgress }) => {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("text", text);
-    formData.append("ttl", date);
-
     axios
-      .post(`${BASE_URL}/api/upload/${uniqueId}`, formData, {
-        onUploadProgress: (progressEvent) => {
-          const percentCompleted = Math.round(
-            (progressEvent.loaded * 100) / progressEvent.total
-          );
-          setUploadProgress(percentCompleted);
-        },
+      .post(`${BASE_URL}/api/upload/${uniqueId}`, {
+        text: text || undefined,
+        ttl: date,
+        filename: file?.name,
       })
       .then(() => {
-        setUploadProgress(0); // Reset progress
-        setIsUploaded(true); // Set to true after successful upload
-
+        setUploadProgress(0);
+        setIsUploaded(true);
       })
       .catch((error) => {
         console.error("Error uploading file:", error);
         alert("Failed to upload the file. Reason: " + error.message);
-        setUploadProgress(0); // Reset progress
+        setUploadProgress(0);
       });
   };
 
@@ -240,7 +231,7 @@ const UploadForm = ({ uniqueId, setUploadProgress, uploadProgress }) => {
         >
           <label htmlFor="fileInput" style={styles.label}>
             Drag & Drop, paste or click to select a file
-            (Max 50 MB)
+            (Max 1 GB)
           </label>
           <input
             id="fileInput"

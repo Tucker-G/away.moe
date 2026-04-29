@@ -14,7 +14,7 @@ from sql_db import SQLiteDatabase
 from database import Database, FileEntry
 
 app = Flask(__name__)
-app.config['MAX_COrNTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB limit
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB limit
 
 gunicorn_logger = logging.getLogger('gunicorn.error')
 app.logger.handlers = gunicorn_logger.handlers
