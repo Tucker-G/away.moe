@@ -1,0 +1,39 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "cf-workers",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-04-27",
+	"observability": {
+		"enabled": true
+	},
+	"upload_source_maps": true,
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"triggers": {
+		"crons": [
+			"0 * * * *"
+		]
+	},
+	"assets": {
+		"directory": "../frontend/build",
+		"not_found_handling": "single-page-application"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "away-moe-db",
+			"database_id": "e6ecca9a-ba5c-4de1-9cf0-e1dae9a412cc"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "FILES",
+			"bucket_name": "away-moe-files"
+		}
+	]
+}

@@ -1,0 +1,5 @@
+{
+  "name": "away-moe",
+  "private": true,
+  "workspaces": ["shared", "cf-workers", "frontend"]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@away-moe/shared",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./types.ts",
+  "types": "./types.ts",
+  "exports": {
+    ".": "./types.ts"
+  },
+  "dependencies": {
+    "zod": "^3.24.0"
+  }
+}
