@@ -35,5 +35,8 @@
 			"binding": "FILES",
 			"bucket_name": "away-moe-files"
 		}
-	]
+	],
+	"vars": {
+		"R2_PUBLIC_HOST": "uploads.away.moe"
+	}
 }

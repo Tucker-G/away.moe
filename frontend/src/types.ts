@@ -23,7 +23,7 @@ export type FetchInfoResponse =
 export type UploadRequest = {
   text?: string;
   ttl: "1m" | "10m" | "1h" | "1d" | "3d" | "1w" | "-1";
-  files?: { fileName: string; fileType?: string }[];
+  files?: { fileName: string; fileType?: string; fileSize: number }[];
 };
 
 export type UploadResponse =

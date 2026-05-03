@@ -46,7 +46,7 @@ const UploadForm = ({ uniqueId, hasPending }: Props) => {
 
     const handlePaste = (e: ClipboardEvent) => {
       if (e.clipboardData?.files && e.clipboardData.files.length > 0) {
-        addFiles(e.clipboardData.files);
+        addFiles(Array.from(e.clipboardData.files));
       }
     };
 
@@ -91,30 +91,26 @@ const UploadForm = ({ uniqueId, hasPending }: Props) => {
     }
   }, [uniqueId, isUploaded]);
 
-  const addFiles = (incoming: FileList) => {
-    setFiles((prev) => {
-      const next = [...prev];
-      let localError = "";
+  const addFiles = (incoming: File[]) => {
+    const next = [...files];
+    let localError = "";
 
-      for (const file of Array.from(incoming)) {
-        if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-          localError = `File "${file.name}" exceeds ${MAX_FILE_SIZE_MB} MB`;
-          continue;
-        }
-        if (next.length >= MAX_FILES) {
-          localError = `Cannot upload more than ${MAX_FILES} files`;
-          break;
-        }
-        const dup = next.some(
-          (f) => f.name === file.name && f.size === file.size
-        );
-        if (dup) continue;
-        next.push(file);
+    for (const file of incoming) {
+      if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+        localError = `File "${file.name}" exceeds ${MAX_FILE_SIZE_MB} MB`;
+        continue;
       }
+      if (next.length >= MAX_FILES) {
+        localError = `Cannot upload more than ${MAX_FILES} files`;
+        break;
+      }
+      const dup = next.some((f) => f.name === file.name && f.size === file.size);
+      if (dup) continue;
+      next.push(file);
+    }
 
-      setError(localError);
-      return next;
-    });
+    setError(localError);
+    setFiles(next);
   };
 
   const removeFile = (index: number) => {
@@ -122,7 +118,7 @@ const UploadForm = ({ uniqueId, hasPending }: Props) => {
   };
 
   const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) addFiles(e.target.files);
+    if (e.target.files) addFiles(Array.from(e.target.files));
     e.target.value = "";
   };
 
@@ -138,7 +134,7 @@ const UploadForm = ({ uniqueId, hasPending }: Props) => {
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setDragging(false);
-    if (e.dataTransfer.files) addFiles(e.dataTransfer.files);
+    if (e.dataTransfer.files) addFiles(Array.from(e.dataTransfer.files));
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -154,7 +150,7 @@ const UploadForm = ({ uniqueId, hasPending }: Props) => {
     const requestBody: UploadRequest = {
       text: text || undefined,
       ttl,
-      files: files.map((f) => ({ fileName: f.name, fileType: f.type })),
+      files: files.map((f) => ({ fileName: f.name, fileType: f.type, fileSize: f.size })),
     };
 
     try {

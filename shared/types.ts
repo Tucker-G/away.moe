@@ -25,6 +25,7 @@ export const UploadRequestSchema = z.object({
     files: z.array(z.object({
         fileName: z.string(),
         fileType: z.string().optional(),
+        fileSize: z.number().int().nonnegative(),
     })).optional(),
 });
 export type UploadRequest = z.infer<typeof UploadRequestSchema>;

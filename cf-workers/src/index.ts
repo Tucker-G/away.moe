@@ -1,4 +1,5 @@
 import { Hono, TypedResponse } from "hono";
+import { cors } from "hono/cors";
 import {
 	addTextEntry,
 	addFileToQueue,
@@ -8,10 +9,9 @@ import {
 	entryPresent,
 	fetchInfoRow,
 	getExpiredBucketKeys,
-	isExpired, getUploadQueue, fetchFile, fetchFiles, deleteFile, markFileUploaded,
+	isExpired, getUploadQueue, fetchFile, fetchFiles, deleteFile, markFileUploaded, cancelUpload,
 } from "./db";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { AwsClient } from "aws4fetch";
 import type { Env } from "./types";
 import { FetchInfoResponse, TTL_SECONDS, UploadRequest, UploadRequestSchema, UploadResponse } from "@away-moe/shared";
 
@@ -29,18 +29,26 @@ function getExpiry(ttl: string): { expiry: number; instantExpire: boolean } | nu
 
 const app = new Hono<{ Bindings: Env }>();
 
+app.use(
+	"/api/*",
+	cors({
+		origin: (origin) => origin,
+		allowMethods: ["GET", "POST", "OPTIONS"],
+		allowHeaders: ["Content-Type"],
+		exposeHeaders: ["Content-Length", "Content-Disposition", "Content-Type"],
+		maxAge: 600,
+	})
+);
+
 app.post("/api/upload/:id", async (c): Promise<TypedResponse<UploadResponse>> => {
 	const uniqueId = c.req.param("id");
 	const env = c.env;
 
-	let body: UploadRequest;
-	try {
-		body = UploadRequestSchema.parse(await c.req.json());
-	} catch {
+	const body = UploadRequestSchema.safeParse(await c.req.json());
+	if (!body.success) {
 		return c.json({ success: false, error: "Invalid JSON body" }, 400);
 	}
-
-	const { text, ttl, files } = body;
+	const { text, ttl, files } = body.data;
 	const hasFiles = !!files && files.length > 0;
 
 	if (!hasFiles && !text) {
@@ -56,32 +64,43 @@ app.post("/api/upload/:id", async (c): Promise<TypedResponse<UploadResponse>> =>
 		return c.json({ success: false, error: "Invalid expiration time given" }, 400);
 	}
 
-	const [alreadyExists, pendingQueue] = await Promise.all([
-		entryPresent(env.DB, uniqueId),
-		getUploadQueue(env.DB, uniqueId),
-	]);
-	if (alreadyExists || pendingQueue) {
+	const alreadyExists = await entryPresent(env.DB, uniqueId)
+	if (alreadyExists) {
 		return c.json({ success: false, error: "Entry already exists" }, 400);
 	}
 
 	if (hasFiles && files.length > 50) {
 		return c.json({ success: false, error: "Too many files to upload" }, 400);
 	}
+
+	const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024;
+	if (hasFiles && files!.some(f => f.fileSize > MAX_FILE_SIZE)) {
+		return c.json({ success: false, error: "File exceeds maximum size of 5 GB" }, 400);
+	}
 	const ip = c.req.header("CF-Connecting-IP") ?? null;
+
+	// Users are allowed to overwrite existing uploads
+	const existingQueue = await getUploadQueue(env.DB, uniqueId)
+	if (existingQueue) {
+		await cancelUpload(env.DB, existingQueue.QueueID)
+	}
 
 	if (!hasFiles && text) {
 		await addTextEntry(env.DB, uniqueId, text, timestamp.expiry, timestamp.instantExpire, ip);
 		return c.json({ success: true, uploadUrls: null });
 	}
 
-	const s3 = new S3Client({
+	const aws = new AwsClient({
+		accessKeyId: env.R2_ACCESS_KEY_ID,
+		secretAccessKey: env.R2_SECRET_ACCESS_KEY,
 		region: "auto",
-		endpoint: `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-		credentials: {
-			accessKeyId: env.R2_ACCESS_KEY_ID,
-			secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-		},
+		service: "s3",
 	});
+
+	// const uploadHost = env.R2_PUBLIC_HOST
+	// 	? `https://${env.R2_PUBLIC_HOST}`
+	// 	: `https://away-moe-files.${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+	const uploadHost = `https://away-moe-files.${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
 
 	const queueId = await createQueue(env.DB, uniqueId, text ?? null, ttl, ip);
 
@@ -89,26 +108,25 @@ app.post("/api/upload/:id", async (c): Promise<TypedResponse<UploadResponse>> =>
 		const fileId = [...crypto.getRandomValues(new Uint8Array(3))]
 			.map(b => b.toString(16).padStart(2, '0'))
 			.join('');
-		const bucketKey = crypto.randomUUID();
+		const r2Key = crypto.randomUUID();
 
-		const [presignedUrl] = await Promise.all([
-			getSignedUrl(
-				s3,
-				new PutObjectCommand({
-					Bucket: "away-moe-files",
-					Key: `files/${bucketKey}`,
-					ContentType: file.fileType ?? "application/octet-stream",
-				}),
-				{ expiresIn: 900 }
-			),
-			addFileToQueue(env.DB, fileId, queueId, file.fileName, bucketKey),
+		const reqUrl = new URL(`${uploadHost}/${r2Key}`);
+		reqUrl.searchParams.set("X-Amz-Expires", "86400");
+
+		const [signedReq] = await Promise.all([
+			aws.sign(new Request(reqUrl, {
+				method: "PUT",
+				headers: {
+					"content-type": file.fileType ?? "application/octet-stream",
+					"content-length": String(file.fileSize),
+				},
+			}), { aws: { signQuery: true } }),
+			addFileToQueue(env.DB, fileId, queueId, file.fileName, r2Key),
 		]);
 
-		return [fileId, { uploadUrl: presignedUrl.replace(
-			`${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/away-moe-files`,
-			"uploads.away.moe"
-		),
-			filename: file.fileName}];
+		const uploadUrl = signedReq.url;
+
+		return [fileId, { uploadUrl, filename: file.fileName }];
 	}));
 
 	return c.json({ success: true, uploadUrls: Object.fromEntries(entries) });
@@ -122,8 +140,8 @@ app.post("/api/confirm/:file_id", async (c) => {
 	if (!fileRow) {
 		return c.json({ success: false, error: "File not found" }, 404);
 	}
-
 	const object = await env.FILES.head(fileRow.BucketKey);
+	console.log(fileRow, object)
 	if (!object) {
 		return c.json({ success: false, error: "File not yet uploaded" }, 400);
 	}

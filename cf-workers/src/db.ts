@@ -128,7 +128,6 @@ export async function getOrCreateMetaURL(
 	).bind(id).first<{ ExpiryTime: number; InstantExpire: number }>();
 
 	if (existing) {
-		await db.prepare("UPDATE URLMetadata SET HasFiles = 1 WHERE ID = ?").bind(id).run();
 		return { expiryTime: existing.ExpiryTime, instantExpire: existing.InstantExpire === 1 };
 	}
 
