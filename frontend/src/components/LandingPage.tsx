@@ -1,5 +1,6 @@
 import React, { CSSProperties, FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { theme } from "../theme";
 
 const LandingPage = () => {
   const [uniqueId, setUniqueId] = useState("");
@@ -13,106 +14,133 @@ const LandingPage = () => {
   };
 
   return (
-    <div style={styles.container}>
-      <h1 style={styles.header}>away.moe</h1>
-      <p style={styles.description}>
-        away.moe allows you to upload files and share them with others using a unique ID. Files can be accessed for a limited time based on their expiration settings. You can also check the status of previously uploaded files using their unique ID.
-      </p>
+    <div style={styles.page}>
+      <div style={styles.container}>
+        <h1 style={styles.header}>
+          away<span style={styles.headerAccent}>.moe</span>
+        </h1>
+        <p style={styles.tagline}>Share files and text with a unique ID.</p>
 
-      <div style={styles.infoBox}>
-        <h2>How to Use:</h2>
-        <ol style={styles.list}>
-          <li>Upload a file or text to a Unique ID.</li>
-          <li>Share the ID with others (or yourself on another computer) to allow them to access the content.</li>
-          <li>The content will be deleted after the specified time, making it unavailable to others.</li>
-        </ol>
+        <div style={styles.infoBox}>
+          <ol style={styles.list}>
+            <li>Upload a file or text to a unique ID.</li>
+            <li>Share the ID with anyone — or yourself on another device.</li>
+            <li>Content auto-deletes after the expiration you set.</li>
+          </ol>
+        </div>
+
+        <form onSubmit={handleCheck} style={styles.form}>
+          <label style={styles.label}>Enter a unique ID</label>
+          <div style={styles.inputRow}>
+            <input
+              type="text"
+              value={uniqueId}
+              onChange={(e) => setUniqueId(e.target.value)}
+              placeholder="e.g. cat-7f3a"
+              required
+              autoFocus
+              style={styles.input}
+              className="mono"
+            />
+            <button type="submit" style={styles.button}>
+              Go
+            </button>
+          </div>
+        </form>
       </div>
-
-      <p style={styles.explanation}>
-        Enter a unique ID below
-      </p>
-
-      <form onSubmit={handleCheck} style={styles.form}>
-        <input
-          type="text"
-          value={uniqueId}
-          onChange={(e) => setUniqueId(e.target.value)}
-          placeholder="Enter unique ID"
-          required
-          style={styles.input}
-        />
-        <button type="submit" style={styles.button}>Check</button>
-      </form>
     </div>
   );
 };
 
 const styles: Record<string, CSSProperties> = {
+  page: {
+    minHeight: "100vh",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "32px 16px",
+  },
   container: {
     display: "flex",
     flexDirection: "column",
-    justifyContent: "center",
     alignItems: "center",
     textAlign: "center",
-    maxWidth: "600px",
-    margin: "auto",
-    padding: "20px",
-    backgroundColor: "#f9f9f9",
-    borderRadius: "8px",
-    boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
+    width: "100%",
+    maxWidth: "480px",
+    padding: "40px 32px",
+    backgroundColor: theme.color.surface,
+    border: `1px solid ${theme.color.border}`,
+    borderRadius: theme.radius.lg,
+    boxShadow: theme.shadow.card,
   },
   header: {
-    fontSize: "2.5em",
-    color: "#007BFF",
-    marginBottom: "15px",
+    fontSize: "2.4em",
+    fontWeight: 700,
+    color: theme.color.text,
+    margin: 0,
+    marginBottom: "8px",
+    letterSpacing: "-0.02em",
   },
-  description: {
-    fontSize: "1.2em",
-    marginBottom: "20px",
-    color: "#333",
+  headerAccent: {
+    color: theme.color.primary,
+  },
+  tagline: {
+    fontSize: "1em",
+    color: theme.color.muted,
+    margin: 0,
+    marginBottom: "24px",
   },
   infoBox: {
     textAlign: "left",
-    marginBottom: "20px",
-    padding: "10px",
-    backgroundColor: "#e0f7fa",
-    borderRadius: "8px",
     width: "100%",
+    marginBottom: "28px",
+    padding: "16px 20px",
+    backgroundColor: theme.color.surfaceAlt,
+    border: `1px solid ${theme.color.border}`,
+    borderRadius: theme.radius.md,
   },
   list: {
-    margin: "10px 0",
+    margin: 0,
     paddingLeft: "20px",
-    fontSize: "1.1em",
-  },
-  explanation: {
-    fontSize: "1.1em",
-    margin: "20px 0",
-    color: "#555",
+    color: theme.color.text,
+    fontSize: "0.95em",
+    lineHeight: 1.7,
   },
   form: {
     display: "flex",
     flexDirection: "column",
-    alignItems: "center",
+    width: "100%",
+  },
+  label: {
+    fontSize: "0.85em",
+    color: theme.color.muted,
+    marginBottom: "8px",
+    textAlign: "left",
+    fontWeight: 500,
+  },
+  inputRow: {
+    display: "flex",
+    gap: "8px",
     width: "100%",
   },
   input: {
-    padding: "10px",
-    width: "80%",
-    maxWidth: "400px",
-    borderRadius: "5px",
-    border: "1px solid #ddd",
-    marginBottom: "10px",
+    flex: 1,
+    padding: "10px 14px",
+    borderRadius: theme.radius.md,
+    border: `1px solid ${theme.color.border}`,
+    backgroundColor: theme.color.surface,
     fontSize: "1em",
   },
   button: {
-    padding: "10px 20px",
-    fontSize: "1.1em",
-    backgroundColor: "#007BFF",
+    padding: "10px 22px",
+    fontSize: "1em",
+    fontWeight: 600,
+    backgroundColor: theme.color.primary,
     color: "white",
     border: "none",
-    borderRadius: "5px",
+    borderRadius: theme.radius.md,
     cursor: "pointer",
-    transition: "background-color 0.3s",
+    boxShadow: theme.shadow.button,
   },
 };
 
