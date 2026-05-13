@@ -317,7 +317,12 @@ const UploadForm = ({ uniqueId, hasPending }: Props) => {
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
-              style={{ ...styles.input, minHeight: "100px", resize: "vertical" }}
+              style={{
+                ...styles.input,
+                minHeight: "100px",
+                resize: "vertical",
+                backgroundColor: theme.color.surfaceAlt,
+              }}
               placeholder="Optional Message"
             />
           </div>
