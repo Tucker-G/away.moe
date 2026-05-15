@@ -15,10 +15,10 @@ const LandingPage = () => {
 
   return (
     <div style={styles.page}>
+      <h1 style={styles.header}>
+        away<span style={styles.headerAccent}>.moe</span>
+      </h1>
       <div style={styles.container}>
-        <h1 style={styles.header}>
-          away<span style={styles.headerAccent}>.moe</span>
-        </h1>
         <p style={styles.tagline}>Share files and text with a unique ID.</p>
 
         <div style={styles.infoBox}>
@@ -56,9 +56,9 @@ const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
     display: "flex",
+    flexDirection: "column",
     alignItems: "center",
-    justifyContent: "center",
-    padding: "32px 16px",
+    padding: "64px 16px 32px",
   },
   container: {
     display: "flex",
@@ -74,12 +74,13 @@ const styles: Record<string, CSSProperties> = {
     boxShadow: theme.shadow.card,
   },
   header: {
-    fontSize: "2.4em",
+    fontSize: "3.2em",
     fontWeight: 700,
     color: theme.color.text,
     margin: 0,
-    marginBottom: "8px",
-    letterSpacing: "-0.02em",
+    marginBottom: "24px",
+    letterSpacing: "-0.03em",
+    lineHeight: 1,
   },
   headerAccent: {
     color: theme.color.primary,

@@ -239,9 +239,9 @@ const UploadForm = ({ uniqueId, hasPending }: Props) => {
   if (isUploaded) {
     return (
       <div style={styles.page}>
+        <h1 style={styles.title}>Upload complete</h1>
         <div style={styles.container}>
           <div style={styles.successBadge}>✓</div>
-          <h1 style={styles.title}>Upload complete</h1>
           <p style={styles.subtitle}>
             On any other device, visit:
           </p>
@@ -276,37 +276,37 @@ const UploadForm = ({ uniqueId, hasPending }: Props) => {
 
   return (
     <div style={styles.page}>
-      <div style={styles.container}>
-        {pendingPromptOpen && (
-          <div style={styles.modalOverlay}>
-            <div style={styles.modal}>
-              <h2 style={{ margin: 0, marginBottom: "8px" }}>Upload in progress</h2>
-              <p style={{ color: theme.color.muted, margin: 0 }}>
-                Another upload is already in progress for this ID. If you continue,
-                your upload will replace the pending one.
-              </p>
-              <div style={styles.modalButtons}>
-                <button
-                  type="button"
-                  style={styles.buttonSecondary}
-                  onClick={() => navigate("/")}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  style={styles.button}
-                  onClick={() => setPendingPromptOpen(false)}
-                >
-                  Continue anyway
-                </button>
-              </div>
+      {pendingPromptOpen && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modal}>
+            <h2 style={{ margin: 0, marginBottom: "8px" }}>Upload in progress</h2>
+            <p style={{ color: theme.color.muted, margin: 0 }}>
+              Another upload is already in progress for this ID. If you continue,
+              your upload will replace the pending one.
+            </p>
+            <div style={styles.modalButtons}>
+              <button
+                type="button"
+                style={styles.buttonSecondary}
+                onClick={() => navigate("/")}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                style={styles.button}
+                onClick={() => setPendingPromptOpen(false)}
+              >
+                Continue anyway
+              </button>
             </div>
           </div>
-        )}
-        <h1 style={styles.title}>
-          away<span style={styles.titleAccent}>.moe</span>
-        </h1>
+        </div>
+      )}
+      <h1 style={styles.title}>
+        away<span style={styles.titleAccent}>.moe</span>
+      </h1>
+      <div style={styles.container}>
         <p style={styles.subtitle}>
           Uploading to ID:{" "}
           <span className="mono" style={styles.idChip}>{uniqueId}</span>
@@ -417,9 +417,9 @@ const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
     display: "flex",
+    flexDirection: "column",
     alignItems: "center",
-    justifyContent: "center",
-    padding: "32px 16px",
+    padding: "64px 16px 32px",
   },
   container: {
     display: "flex",
@@ -435,11 +435,12 @@ const styles: Record<string, CSSProperties> = {
     boxShadow: theme.shadow.card,
   },
   title: {
-    fontSize: "1.9em",
+    fontSize: "3.2em",
     fontWeight: 700,
     margin: 0,
-    marginBottom: "6px",
-    letterSpacing: "-0.02em",
+    marginBottom: "24px",
+    letterSpacing: "-0.03em",
+    lineHeight: 1,
   },
   titleAccent: {
     color: theme.color.primary,
