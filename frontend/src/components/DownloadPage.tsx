@@ -12,19 +12,38 @@ type Props = {
 
 const IMAGE_REGEX = /\.(jpe?g|gif|png|bmp|webp)$/i;
 
+const formatBytes = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+};
+
+const formatExpiration = (expirationSeconds: number): string => {
+  const diffSec = expirationSeconds - Math.floor(Date.now() / 1000);
+  if (diffSec <= 0) return "now";
+  const minutes = Math.round(diffSec / 60);
+  if (minutes < 60) return `in ${minutes} min`;
+  const hours = Math.round(diffSec / 3600);
+  if (hours < 24) return `in ${hours} hr`;
+  const days = Math.round(diffSec / 86400);
+  return `in ${days} day${days === 1 ? "" : "s"}`;
+};
+
 const DownloadPage = ({ data }: Props) => {
   const [progress, setProgress] = useState<Record<string, number>>({});
+  const [downloading, setDownloading] = useState<Record<string, boolean>>({});
   const [copied, setCopied] = useState(false);
 
   const handleDownload = async (fileId: string, filename: string) => {
+    setDownloading((prev) => ({ ...prev, [fileId]: true }));
+    setProgress((prev) => ({ ...prev, [fileId]: 0 }));
     try {
       const res = await fetch(
         `${BASE_URL}/api/download/${data.unique_id}/${fileId}`,
         { method: "GET" }
       );
       if (!res.ok) throw new Error("Failed to download the file");
-      const totalHeader = res.headers.get("Content-Length");
-      const total = totalHeader ? parseInt(totalHeader, 10) : 0;
       const reader = res.body?.getReader();
       if (!reader) throw new Error("No readable stream");
 
@@ -36,12 +55,7 @@ const DownloadPage = ({ data }: Props) => {
         if (value) {
           chunks.push(value);
           loaded += value.length;
-          if (total > 0) {
-            setProgress((prev) => ({
-              ...prev,
-              [fileId]: Math.round((loaded / total) * 100),
-            }));
-          }
+          setProgress((prev) => ({ ...prev, [fileId]: loaded }));
         }
       }
 
@@ -58,6 +72,8 @@ const DownloadPage = ({ data }: Props) => {
     } catch (err) {
       console.error("Error downloading the file:", err);
       alert("Failed to download the file.");
+    } finally {
+      setDownloading((prev) => ({ ...prev, [fileId]: false }));
     }
   };
 
@@ -69,6 +85,18 @@ const DownloadPage = ({ data }: Props) => {
 
   const linkifyOptions = { defaultProtocol: "https" };
   const fileEntries = data.has_files && data.files ? Object.entries(data.files) : [];
+  const hasFiles = fileEntries.length > 0;
+  const perFileExpireNotice = data.instantExpire && hasFiles;
+
+  let topNotice: { text: string; kind: "warn" | "info" } | null = null;
+  if (data.instantExpire && !hasFiles) {
+    topNotice = {
+      text: "This page is expired",
+      kind: "warn",
+    };
+  } else if (!data.instantExpire) {
+    topNotice = { text: `Expires ${formatExpiration(data.expiration)}`, kind: "info" };
+  }
 
   return (
     <div style={styles.page}>
@@ -78,6 +106,16 @@ const DownloadPage = ({ data }: Props) => {
           <p style={styles.subtitle}>
             ID: <span className="mono" style={styles.idChip}>{data.unique_id}</span>
           </p>
+          {topNotice && (
+            <div
+              style={{
+                ...styles.notice,
+                ...(topNotice.kind === "warn" ? styles.noticeWarn : styles.noticeInfo),
+              }}
+            >
+              {topNotice.text}
+            </div>
+          )}
         </div>
 
         {data.text !== null && (
@@ -111,6 +149,11 @@ const DownloadPage = ({ data }: Props) => {
                         {(info.filesize / (1024 * 1024)).toFixed(2)} MB
                       </span>
                     </div>
+                    {perFileExpireNotice && (
+                      <div style={styles.fileExpireNote}>
+                        {isImage ? "Expired" : "Expires after download"}
+                      </div>
+                    )}
                     {isImage ? (
                       <img
                         src={`${BASE_URL}/api/download/${data.unique_id}/${fileId}`}
@@ -119,21 +162,27 @@ const DownloadPage = ({ data }: Props) => {
                       />
                     ) : (
                       <div>
-                        {fileProgress > 0 && fileProgress < 100 && (
-                          <div style={styles.progressBar}>
-                            <div
-                              style={{
-                                ...styles.progress,
-                                width: `${fileProgress}%`,
-                              }}
-                            />
+                        {downloading[fileId] && (
+                          <div style={styles.progressWrap}>
+                            <div style={styles.progressText}>
+                              {formatBytes(fileProgress)} / {formatBytes(info.filesize)}
+                            </div>
+                            <div style={styles.progressBar}>
+                              <div
+                                style={{
+                                  ...styles.progress,
+                                  width: `${Math.min(100, (fileProgress / info.filesize) * 100)}%`,
+                                }}
+                              />
+                            </div>
                           </div>
                         )}
                         <button
                           onClick={() => handleDownload(fileId, info.filename)}
                           style={styles.button}
+                          disabled={downloading[fileId]}
                         >
-                          Download
+                          {downloading[fileId] ? "Downloading…" : "Download"}
                         </button>
                       </div>
                     )}
@@ -177,6 +226,31 @@ const styles: Record<string, CSSProperties> = {
     margin: 0,
     color: theme.color.muted,
     fontSize: "0.95em",
+  },
+  notice: {
+    display: "inline-block",
+    marginTop: "12px",
+    padding: "6px 12px",
+    borderRadius: theme.radius.pill,
+    fontSize: "0.85em",
+    fontWeight: 500,
+    border: "1px solid transparent",
+  },
+  noticeInfo: {
+    backgroundColor: theme.color.surfaceAlt,
+    borderColor: theme.color.border,
+    color: theme.color.muted,
+  },
+  noticeWarn: {
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
+    borderColor: "rgba(239, 68, 68, 0.25)",
+    color: theme.color.danger,
+  },
+  fileExpireNote: {
+    marginBottom: "8px",
+    fontSize: "0.8em",
+    color: theme.color.danger,
+    fontWeight: 500,
   },
   idChip: {
     backgroundColor: theme.color.surfaceAlt,
@@ -265,18 +339,26 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: theme.radius.sm,
     backgroundColor: theme.color.surface,
   },
+  progressWrap: {
+    margin: "8px 0",
+  },
+  progressText: {
+    fontSize: "0.85em",
+    color: theme.color.muted,
+    marginBottom: "4px",
+    fontVariantNumeric: "tabular-nums",
+  },
   progressBar: {
     width: "100%",
     height: "6px",
     backgroundColor: theme.color.border,
     borderRadius: theme.radius.pill,
     overflow: "hidden",
-    margin: "8px 0",
   },
   progress: {
     height: "100%",
     backgroundColor: theme.color.success,
-    transition: "width 0.3s ease",
+    transition: "width 0.2s ease",
   },
   button: {
     padding: "9px 18px",

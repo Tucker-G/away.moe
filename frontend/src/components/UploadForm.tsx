@@ -18,24 +18,38 @@ import type { UploadRequest, UploadResponse } from "../types";
 const MAX_FILE_SIZE_MB = 5120;
 const MAX_FILES = 50;
 
+const formatBytes = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+};
+
 type Props = {
   uniqueId: string;
   hasPending: boolean;
 };
 
+type TrackedFile = { id: string; file: File };
+
+const newId = () =>
+  (typeof crypto !== "undefined" && "randomUUID" in crypto)
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 const UploadForm = ({ uniqueId, hasPending }: Props) => {
   const navigate = useNavigate();
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<TrackedFile[]>([]);
   const [text, setText] = useState("");
   const [ttl, setTtl] = useState<UploadRequest["ttl"]>("-1");
   const [error, setError] = useState("");
   const [isUploaded, setIsUploaded] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const [fileProgress, setFileProgress] = useState<Record<string, number>>({});
   const [dragging, setDragging] = useState(false);
   const [pendingPromptOpen, setPendingPromptOpen] = useState(hasPending);
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  const uploading = progress > 0 && !isUploaded;
+  const xhrsRef = useRef<Record<string, XMLHttpRequest>>({});
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -105,17 +119,28 @@ const UploadForm = ({ uniqueId, hasPending }: Props) => {
         localError = `Cannot upload more than ${MAX_FILES} files`;
         break;
       }
-      const dup = next.some((f) => f.name === file.name && f.size === file.size);
+      const dup = next.some(
+        (f) => f.file.name === file.name && f.file.size === file.size
+      );
       if (dup) continue;
-      next.push(file);
+      next.push({ id: newId(), file });
     }
 
     setError(localError);
     setFiles(next);
   };
 
-  const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
+  const removeFile = (id: string) => {
+    const xhr = xhrsRef.current[id];
+    if (xhr) {
+      xhr.abort();
+      delete xhrsRef.current[id];
+    }
+    setFiles((prev) => prev.filter((f) => f.id !== id));
+    setFileProgress((prev) => {
+      const { [id]: _removed, ...rest } = prev;
+      return rest;
+    });
   };
 
   const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
@@ -148,10 +173,15 @@ const UploadForm = ({ uniqueId, hasPending }: Props) => {
 
     setError("");
 
+    const snapshot = files;
     const requestBody: UploadRequest = {
       text: text || undefined,
       ttl,
-      files: files.map((f) => ({ fileName: f.name, fileType: f.type, fileSize: f.size })),
+      files: snapshot.map(({ file: f }) => ({
+        fileName: f.name,
+        fileType: f.type,
+        fileSize: f.size,
+      })),
     };
 
     try {
@@ -170,23 +200,16 @@ const UploadForm = ({ uniqueId, hasPending }: Props) => {
         return;
       }
 
-      const totalBytes = files.reduce((sum, f) => sum + f.size, 0) || 1;
-      const bytesLoaded: Record<string, number> = {};
-      const recomputeProgress = () => {
-        const sum = Object.values(bytesLoaded).reduce((a, b) => a + b, 0);
-        setProgress(Math.min(100, Math.round((sum / totalBytes) * 100)));
-      };
-
-      // Initialize so progress bar shows immediately
-      setProgress(1);
+      setUploading(true);
+      setFileProgress(Object.fromEntries(snapshot.map((f) => [f.id, 0])));
 
       const entries = Object.entries(data.uploadUrls);
       await Promise.all(
         entries.map(([fileId, info], idx) => {
-          const file = files[idx];
-          bytesLoaded[fileId] = 0;
+          const { id: clientId, file } = snapshot[idx];
           return new Promise<void>((resolve, reject) => {
             const xhr = new XMLHttpRequest();
+            xhrsRef.current[clientId] = xhr;
             xhr.open("PUT", info.uploadUrl, true);
             xhr.setRequestHeader(
               "Content-Type",
@@ -194,14 +217,13 @@ const UploadForm = ({ uniqueId, hasPending }: Props) => {
             );
             xhr.upload.onprogress = (ev) => {
               if (ev.lengthComputable) {
-                bytesLoaded[fileId] = ev.loaded;
-                recomputeProgress();
+                setFileProgress((prev) => ({ ...prev, [clientId]: ev.loaded }));
               }
             };
             xhr.onload = async () => {
+              delete xhrsRef.current[clientId];
               if (xhr.status >= 200 && xhr.status < 300) {
-                bytesLoaded[fileId] = file.size;
-                recomputeProgress();
+                setFileProgress((prev) => ({ ...prev, [clientId]: file.size }));
                 try {
                   await axios.post(`${BASE_URL}/api/confirm/${fileId}`);
                   resolve();
@@ -212,19 +234,27 @@ const UploadForm = ({ uniqueId, hasPending }: Props) => {
                 reject(new Error(`Upload failed (${xhr.status})`));
               }
             };
-            xhr.onerror = () => reject(new Error("Network error during upload"));
+            xhr.onerror = () => {
+              delete xhrsRef.current[clientId];
+              reject(new Error("Network error during upload"));
+            };
+            xhr.onabort = () => {
+              delete xhrsRef.current[clientId];
+              resolve();
+            };
             xhr.send(file);
           });
         })
       );
 
-      setProgress(100);
       setIsUploaded(true);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error("Error uploading:", err);
       setError(`Failed to upload. Reason: ${message}`);
-      setProgress(0);
+      setFileProgress({});
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -335,9 +365,8 @@ const UploadForm = ({ uniqueId, hasPending }: Props) => {
               required
             >
               <option value="-1">
-                Delete on first view (or 1 week)
+                Delete on first view / download (or 1 week)
               </option>
-              <option value="1m">1 minute</option>
               <option value="10m">10 minutes</option>
               <option value="1h">1 hour</option>
               <option value="1d">1 day</option>
@@ -377,31 +406,37 @@ const UploadForm = ({ uniqueId, hasPending }: Props) => {
 
           {files.length > 0 && (
             <ul style={styles.fileList}>
-              {files.map((f, i) => (
-                <li key={`${f.name}-${f.size}-${i}`} style={styles.fileRow}>
-                  <span style={styles.fileName}>{f.name}</span>
-                  <span style={styles.fileSize}>
-                    {(f.size / (1024 * 1024)).toFixed(2)} MB
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => removeFile(i)}
-                    style={styles.removeButton}
-                    aria-label={`Remove ${f.name}`}
-                  >
-                    ×
-                  </button>
-                </li>
-              ))}
+              {files.map(({ id, file: f }) => {
+                const loaded = fileProgress[id] ?? 0;
+                const showProgress = uploading || (loaded > 0 && loaded < f.size);
+                const pct = f.size > 0 ? Math.min(100, (loaded / f.size) * 100) : 0;
+                return (
+                  <li key={id} style={styles.fileRow}>
+                    <div style={styles.fileRowTop}>
+                      <span style={styles.fileName}>{f.name}</span>
+                      <span style={styles.fileSize}>
+                        {showProgress
+                          ? `${formatBytes(loaded)} / ${formatBytes(f.size)}`
+                          : formatBytes(f.size)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeFile(id)}
+                        style={styles.removeButton}
+                        aria-label={`Remove ${f.name}`}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    {showProgress && (
+                      <div style={styles.progressBar}>
+                        <div style={{ ...styles.progress, width: `${pct}%` }} />
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
-          )}
-
-          {progress > 0 && (
-            <div style={styles.progressBar}>
-              <div style={{ ...styles.progress, width: `${progress}%` }}>
-                {progress > 8 ? `${progress}%` : ""}
-              </div>
-            </div>
           )}
 
           <button type="submit" style={styles.button} disabled={uploading}>
@@ -538,12 +573,17 @@ const styles: Record<string, CSSProperties> = {
   },
   fileRow: {
     display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: "column",
     padding: "8px 12px",
     backgroundColor: theme.color.surfaceAlt,
     border: `1px solid ${theme.color.border}`,
     borderRadius: theme.radius.md,
+    gap: "6px",
+  },
+  fileRowTop: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: "8px",
   },
   fileName: {
@@ -556,6 +596,7 @@ const styles: Record<string, CSSProperties> = {
   fileSize: {
     color: theme.color.muted,
     fontSize: "0.85em",
+    fontVariantNumeric: "tabular-nums",
   },
   removeButton: {
     background: "transparent",
@@ -568,7 +609,7 @@ const styles: Record<string, CSSProperties> = {
   },
   progressBar: {
     width: "100%",
-    height: "8px",
+    height: "6px",
     backgroundColor: theme.color.border,
     borderRadius: theme.radius.pill,
     overflow: "hidden",
@@ -576,12 +617,7 @@ const styles: Record<string, CSSProperties> = {
   progress: {
     height: "100%",
     backgroundColor: theme.color.primary,
-    color: "white",
-    fontSize: "10px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    transition: "width 0.3s ease",
+    transition: "width 0.2s ease",
   },
   button: {
     padding: "11px 22px",

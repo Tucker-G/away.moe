@@ -38,7 +38,7 @@ const FileDisplay = () => {
     );
   }
 
-  if (data.success === false) {
+  if (!data.success) {
     return (
       <div style={centerStyle}>
         <p style={{ color: theme.color.danger }}>{data.error}</p>
@@ -46,7 +46,7 @@ const FileDisplay = () => {
     );
   }
 
-  if (data.id_present === false) {
+  if (!data.id_present) {
     return <UploadForm uniqueId={uniqueId} hasPending={data.pending_uploads} />;
   }
 
