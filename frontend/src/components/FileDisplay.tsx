@@ -1,9 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { BASE_URL } from "../config";
+import { theme } from "../theme";
 import UploadForm from "./UploadForm";
 import DownloadPage from "./DownloadPage";
 import type { FetchInfoResponse } from "../types";
+
+const centerStyle: React.CSSProperties = {
+  minHeight: "100vh",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "16px",
+};
 
 const FileDisplay = () => {
   const { uniqueId } = useParams<{ uniqueId: string }>();
@@ -21,13 +30,23 @@ const FileDisplay = () => {
   }, [uniqueId]);
 
   if (!uniqueId) return null;
-  if (data === null) return <p style={{ textAlign: "center" }}>Loading...</p>;
-
-  if (data.success === false) {
-    return <p style={{ textAlign: "center", color: "red" }}>{data.error}</p>;
+  if (data === null) {
+    return (
+      <div style={centerStyle}>
+        <p style={{ color: theme.color.muted }}>Loading…</p>
+      </div>
+    );
   }
 
-  if (data.id_present === false) {
+  if (!data.success) {
+    return (
+      <div style={centerStyle}>
+        <p style={{ color: theme.color.danger }}>{data.error}</p>
+      </div>
+    );
+  }
+
+  if (!data.id_present) {
     return <UploadForm uniqueId={uniqueId} hasPending={data.pending_uploads} />;
   }
 

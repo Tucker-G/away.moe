@@ -7,6 +7,7 @@ export type FetchInfoResponse =
       has_files: boolean;
       files: Record<string, { filename: string; filesize: number }> | null;
       expiration: number;
+      instantExpire: boolean;
     }
   | {
       unique_id: string;
@@ -22,7 +23,7 @@ export type FetchInfoResponse =
 
 export type UploadRequest = {
   text?: string;
-  ttl: "1m" | "10m" | "1h" | "1d" | "3d" | "1w" | "-1";
+  ttl: "10m" | "1h" | "1d" | "3d" | "1w" | "-1";
   files?: { fileName: string; fileType?: string; fileSize: number }[];
 };
 

@@ -8,6 +8,7 @@ export type FetchInfoResponse = {
 	has_files: boolean;
 	files: Record<string, {filename: string, filesize: number}> | null;
 	expiration: number
+	instantExpire: boolean
 } | {
 	unique_id: string;
 	success: true;
@@ -21,7 +22,7 @@ export type FetchInfoResponse = {
 
 export const UploadRequestSchema = z.object({
     text: z.string().optional(),
-    ttl: z.union([z.enum(["1m", "10m", "1h", "1d", "3d", "1w"]), z.literal("-1")]),
+    ttl: z.union([z.enum(["10m", "1h", "1d", "3d", "1w"]), z.literal("-1")]),
     files: z.array(z.object({
         fileName: z.string(),
         fileType: z.string().optional(),
@@ -39,7 +40,6 @@ export type UploadResponse = {
 }
 
 export const TTL_SECONDS: Record<string, number> = {
-	"1m": 60,
 	"10m": 600,
 	"1h": 3600,
 	"1d": 86400,

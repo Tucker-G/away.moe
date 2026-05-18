@@ -185,7 +185,8 @@ app.get("/api/fetch_info/:id", async (c): Promise<TypedResponse<FetchInfoRespons
 		text: row.Content ?? null,
 		has_files: false,
 		files: null,
-		expiration: row.ExpiryTime
+		expiration: row.ExpiryTime,
+		instantExpire: !!row.InstantExpire
 	};
 
 	if (row.HasFiles) {
