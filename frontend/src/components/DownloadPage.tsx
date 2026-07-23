@@ -1,4 +1,4 @@
-import React, { CSSProperties, useState } from "react";
+import React, { CSSProperties, useEffect, useRef, useState } from "react";
 import Linkify from "linkify-react";
 import { BASE_URL } from "../config";
 import { theme } from "../theme";
@@ -11,6 +11,7 @@ type Props = {
 };
 
 const IMAGE_REGEX = /\.(jpe?g|gif|png|bmp|webp)$/i;
+const VIDEO_REGEX = /\.(mp4|webm|ogv|mov|m4v)$/i;
 
 const formatBytes = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
@@ -33,9 +34,20 @@ const formatExpiration = (expirationSeconds: number): string => {
 const DownloadPage = ({ data }: Props) => {
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [downloading, setDownloading] = useState<Record<string, boolean>>({});
+  const [videoUrls, setVideoUrls] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState(false);
+  const videoUrlsRef = useRef(videoUrls);
+  videoUrlsRef.current = videoUrls;
 
-  const handleDownload = async (fileId: string, filename: string) => {
+  useEffect(() => {
+    return () => {
+      Object.values(videoUrlsRef.current).forEach((url) =>
+        window.URL.revokeObjectURL(url)
+      );
+    };
+  }, []);
+
+  const fetchBlob = async (fileId: string): Promise<Blob> => {
     setDownloading((prev) => ({ ...prev, [fileId]: true }));
     setProgress((prev) => ({ ...prev, [fileId]: 0 }));
     try {
@@ -59,21 +71,43 @@ const DownloadPage = ({ data }: Props) => {
         }
       }
 
-      const blob = new Blob(chunks);
+      const type = res.headers.get("content-type") ?? "";
+      return new Blob(chunks as BlobPart[], type ? { type } : undefined);
+    } finally {
+      setDownloading((prev) => ({ ...prev, [fileId]: false }));
+    }
+  };
+
+  const saveUrl = (url: string, filename: string) => {
+    const a = document.createElement("a");
+    a.style.display = "none";
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleDownload = async (fileId: string, filename: string) => {
+    try {
+      const blob = await fetchBlob(fileId);
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.style.display = "none";
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      saveUrl(url, filename);
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Error downloading the file:", err);
       alert("Failed to download the file.");
-    } finally {
-      setDownloading((prev) => ({ ...prev, [fileId]: false }));
+    }
+  };
+
+  const handlePlay = async (fileId: string) => {
+    try {
+      const blob = await fetchBlob(fileId);
+      const url = window.URL.createObjectURL(blob);
+      setVideoUrls((prev) => ({ ...prev, [fileId]: url }));
+    } catch (err) {
+      console.error("Error loading the video:", err);
+      alert("Failed to load the video.");
     }
   };
 
@@ -140,7 +174,9 @@ const DownloadPage = ({ data }: Props) => {
             <div style={styles.fileList}>
               {fileEntries.map(([fileId, info]) => {
                 const isImage = IMAGE_REGEX.test(info.filename);
+                const isVideo = VIDEO_REGEX.test(info.filename);
                 const fileProgress = progress[fileId] ?? 0;
+                const videoUrl = videoUrls[fileId];
                 return (
                   <div key={fileId} style={styles.fileCard}>
                     <div style={styles.fileMeta}>
@@ -160,6 +196,18 @@ const DownloadPage = ({ data }: Props) => {
                         alt={info.filename}
                         style={styles.image}
                       />
+                    ) : isVideo && videoUrl ? (
+                      <div>
+                        <video src={videoUrl} controls autoPlay style={styles.image} />
+                        <div style={styles.buttonRow}>
+                          <button
+                            onClick={() => saveUrl(videoUrl, info.filename)}
+                            style={styles.button}
+                          >
+                            Download
+                          </button>
+                        </div>
+                      </div>
                     ) : (
                       <div>
                         {downloading[fileId] && (
@@ -177,13 +225,24 @@ const DownloadPage = ({ data }: Props) => {
                             </div>
                           </div>
                         )}
-                        <button
-                          onClick={() => handleDownload(fileId, info.filename)}
-                          style={styles.button}
-                          disabled={downloading[fileId]}
-                        >
-                          {downloading[fileId] ? "Downloading…" : "Download"}
-                        </button>
+                        <div style={styles.buttonRow}>
+                          {isVideo && (
+                            <button
+                              onClick={() => handlePlay(fileId)}
+                              style={styles.button}
+                              disabled={downloading[fileId]}
+                            >
+                              {downloading[fileId] ? "Loading…" : "▶ Play"}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDownload(fileId, info.filename)}
+                            style={styles.button}
+                            disabled={downloading[fileId]}
+                          >
+                            {downloading[fileId] ? "Downloading…" : "Download"}
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -359,6 +418,10 @@ const styles: Record<string, CSSProperties> = {
     height: "100%",
     backgroundColor: theme.color.success,
     transition: "width 0.2s ease",
+  },
+  buttonRow: {
+    display: "flex",
+    gap: "8px",
   },
   button: {
     padding: "9px 18px",
