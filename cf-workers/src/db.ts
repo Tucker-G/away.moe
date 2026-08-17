@@ -167,6 +167,7 @@ export async function markFileUploaded(db: D1Database, fileId: string): Promise<
 
 	if ((remaining?.count ?? 0) === 0) {
 		await db.prepare("DELETE FROM UploadQueue WHERE QueueID = ?").bind(file.QueueID).run();
+		console.log({ id: fileId, event: 'all files uploaded'})
 	}
 }
 
@@ -213,4 +214,8 @@ export async function deleteExpiredEntries(db: D1Database): Promise<void> {
 	await db.prepare("DELETE FROM URLMetadata WHERE ExpiryTime < ?").bind(now()).run();
 	await db.prepare("DELETE FROM File WHERE QueueID IN (SELECT QueueID FROM UploadQueue WHERE QueueExpiry < ?)").bind(now()).run();
 	await db.prepare("DELETE FROM UploadQueue WHERE QueueExpiry < ?").bind(now()).run();
+}
+
+export async function addMail(db: D1Database, message: string): Promise<void> {
+
 }

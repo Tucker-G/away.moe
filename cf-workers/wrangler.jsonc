@@ -19,9 +19,17 @@
 			"0 * * * *"
 		]
 	},
+	"routes": [
+		{
+			"pattern": "*.away.moe/*",
+			"zone_name": "away.moe"
+		}
+	],
 	"assets": {
 		"directory": "../frontend/build",
-		"not_found_handling": "single-page-application"
+		"not_found_handling": "single-page-application",
+		"binding": "ASSETS",
+		"run_worker_first": true
 	},
 	"d1_databases": [
 		{
@@ -38,5 +46,9 @@
 	],
 	"vars": {
 		"R2_PUBLIC_HOST": "uploads.away.moe"
-	}
+	},
+	"send_email": [{ "name": "EMAIL" }],
+	"secrets": {
+    	"required": ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "RECEIVING_EMAIL_ADDRESS"]
+  	}
 }

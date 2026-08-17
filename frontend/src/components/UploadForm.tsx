@@ -13,7 +13,7 @@ import axios from "axios";
 import qr from "qr.js";
 import { BASE_URL } from "../config";
 import { theme } from "../theme";
-import type { UploadRequest, UploadResponse } from "../types";
+import type { UploadRequest, UploadResponse } from "@away-moe/shared";
 
 const MAX_FILE_SIZE_MB = 5120;
 const MAX_FILES = 50;

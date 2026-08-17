@@ -46,3 +46,13 @@ export const TTL_SECONDS: Record<string, number> = {
 	"3d": 259200,
 	"1w": 604800,
 };
+
+export const MailRequestSchema = z.object({
+	message: z.string(),
+	sender: z.string().nullable(),
+})
+export type MailRequest = z.infer<typeof MailRequestSchema>;
+
+export type GenericResponse = {
+	success: boolean;
+}

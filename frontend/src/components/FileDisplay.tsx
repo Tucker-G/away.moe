@@ -4,7 +4,7 @@ import { BASE_URL } from "../config";
 import { theme } from "../theme";
 import UploadForm from "./UploadForm";
 import DownloadPage from "./DownloadPage";
-import type { FetchInfoResponse } from "../types";
+import type { FetchInfoResponse } from "@away-moe/shared";
 
 const centerStyle: React.CSSProperties = {
   minHeight: "100vh",

@@ -2,7 +2,7 @@ import React, { CSSProperties, useEffect, useRef, useState } from "react";
 import Linkify from "linkify-react";
 import { BASE_URL } from "../config";
 import { theme } from "../theme";
-import type { FetchInfoResponse } from "../types";
+import type { FetchInfoResponse } from "@away-moe/shared";
 
 type IdPresent = Extract<FetchInfoResponse, { id_present: true }>;
 
